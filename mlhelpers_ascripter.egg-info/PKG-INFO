@@ -1,0 +1,22 @@
+Metadata-Version: 2.1
+Name: mlhelpers-ascripter
+Version: 0.1
+Summary: Machine Learning Helpers
+Home-page: https://github.com/ascripter/mlhelpers
+Author: Andreas Pfrengle
+Author-email: a.pfrengle@gmail.com
+License: UNKNOWN
+Description: # mlhelpers package
+        
+        Introducing ``DataFrameModier`` class as link between ``pandas.DataFrame``
+        and models from ``sklearn`` oder ``statsmodels``
+        
+Platform: UNKNOWN
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Development Status :: 2 - Pre-Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Requires-Python: >=3.6
+Description-Content-Type: text/markdown
