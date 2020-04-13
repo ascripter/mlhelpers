@@ -52,7 +52,7 @@ class Learner:
     :type y_columns: list or str, optional
     :param imputer: Imputer_ to estimate missing data. Default is to replace
         missing data cells with the columns median.
-    :type imputer: sklearn.impute.SimpleImputer, optional
+    :type imputer: sklearn.impute.<ImputerInstance>, optional
     :param normalizer: Normalizes data of all columns. Default is to use
         sklearn's RobustScaler_ which normalizes to the IQR
         (interquartile range)
@@ -61,6 +61,10 @@ class Learner:
         and has at least one target variable with > 2 classes
     :param float test_size: Fraction of dataset that will be used
         as test set.
+    :param test_df: Overrides `test_size`. Explicitly hands over a DataFrame
+        as test set. The 1st argument ``df`` is then interpreted as
+        training set
+    :type test_df: pd.DataFrame, optional
         
     .. todo::
         - Multitarget Modelling
@@ -73,7 +77,7 @@ class Learner:
                  imputer=impute.SimpleImputer(missing_values=np.nan, strategy='median'),
                  normalizer=preprocessing.RobustScaler(copy=False),
                  multiclass=False,
-                 test_size=0.25,
+                 test_size=0.25, test_df=None,
                  random_state=None):
         y_columns = [y_columns] if type(y_columns) is str else y_columns
         if modifier is None:
@@ -87,6 +91,7 @@ class Learner:
         self.df = df
         self.modifier = modifier
         self.test_size = test_size
+        self.test_df = test_df
         self.x_columns = self.modifier.x_columns
         self.y_columns = y_columns
         
@@ -126,30 +131,53 @@ class Learner:
         """
         Applies imputation, then normalization, then performing train/test
         split and returns tuple of ``(X_train, X_test, Y_train, Y_test)``
-        
+        if ``test_size`` is given, otherwise ``(X, Y)``
+
+        :param pandas.DataFrame df: DataFrame to be split into X and Y
+        :param test_size: Fraction of rows to be used as test set.
+            If ``None`` is passed, there will be no train/test split
+        :type test_size: float or type(None)
+        :param bool shuffle: Whether train/test split is shuffled or not
+        :param random_state: random state
+        :type random_state: int or type(None)
+
         """
         X = df.loc[:, self.x_columns]
         Y = df.loc[:, self.y_columns]
         
         if self.imputer is not None:
-            X = self.imputer.fit_transform(X)
+            X.loc[:, :] = self.imputer.fit_transform(X)
         
-        X_train, X_test, Y_train, Y_test = model_selection.train_test_split(
-                X, Y, test_size=test_size, shuffle=shuffle,
-                random_state=random_state)
+        if test_size is not None:
+            X_train, X_test, Y_train, Y_test = model_selection.train_test_split(
+                    X, Y, test_size=test_size, shuffle=shuffle,
+                    random_state=random_state)
+        else:
+            X_train, X_test, Y_train, Y_test = X, None, Y, None
+        #else:
+        #    X_train, X_test = X[np.logical_not(X.index.isin(self.test_rows)), :], X.loc[self.test_rows, :]
+        #    Y_train, Y_test = Y[np.logical_not(Y.index.isin(self.test_rows)), :], Y.loc[self.test_rows, :]
         if self.normalizer is not None:
             X_train = self.normalizer.fit_transform(X_train)
-            X_test = self.normalizer.transform(X_test)
+            if X_test is not None:
+                X_test = self.normalizer.transform(X_test)
         if len(self.y_columns) == 1:
             # convert column vector to 1d array
-            Y_train, Y_test = Y_train.values[:,0], Y_test.values[:,0]
-        print ("X_train shape: {}, Y_train shape: {}".format(X_train.shape, Y_train.shape))
-        print ("X_test shape:  {}, Y_test shape:  {}".format(X_test.shape, Y_test.shape))
+            Y_train = Y_train.values[:,0]
+            if Y_test is not None:
+                Y_test = Y_test.values[:,0]
+        if X_test is not None:
+            print("X_train shape: {}, Y_train shape: {}".format(X_train.shape, Y_train.shape))
+            print("X_test shape:  {}, Y_test shape:  {}".format(X_test.shape, Y_test.shape))
         return X_train, X_test, Y_train, Y_test
     
     def set_train_test(self, random_state=None):
-        X_train, X_test, Y_train, Y_test = \
-            self.get_XY(self.df, test_size=self.test_size, random_state=random_state)
+        if self.test_df is not None:
+            X_train, _, Y_train, _ = self.get_XY(self.df, test_size=None, random_state=random_state)
+            X_test, _, Y_test, _ = self.get_XY(self.test_df, test_size=None, random_state=random_state)
+        else:
+            X_train, X_test, Y_train, Y_test = \
+                self.get_XY(self.df, test_size=self.test_size, random_state=random_state)
         self.X_train = X_train
         self.X_test = X_test
         self.Y_train = Y_train
@@ -182,11 +210,7 @@ class Learner:
         y = np.linspace(np.min(Y_test), np.max(Y_test), 2)
         plt.plot(y, y, c="black", lw=2)
         plt.show()
-    
-        print("Train score (R²): {}, Test score (R²): {}".format(
-                mdl_fitted.score(X_train, Y_train),
-                mdl_fitted.score(X_test, Y_test)
-        ))
+        print("Test score (R²): {}".format(mdl_fitted.score(X_test, Y_test)))
     
     def plot_accuracy(self, means, std=0):
         plt.title("Prediction Accuracy (Train vs. Test set)")
